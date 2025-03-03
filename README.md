@@ -14,8 +14,8 @@ The reason why you can improve go-mysql-elasticsearch.
 ## Install
 
 + Install Go (1.9+) and set your [GOPATH](https://golang.org/doc/code.html#GOPATH)
-+ `go get github.com/siddontang/go-mysql-elasticsearch`, it will print some messages in console, skip it. :-)
-+ cd `$GOPATH/src/github.com/siddontang/go-mysql-elasticsearch`
++ `go get github.com/go-mysql-org/go-mysql-elasticsearch`, it will print some messages in console, skip it. :-)
++ cd `$GOPATH/src/github.com/go-mysql-org/go-mysql-elasticsearch`
 + `make`
 
 ## How to use?
