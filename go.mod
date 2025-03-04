@@ -7,6 +7,7 @@ toolchain go1.23.0
 require (
 	github.com/BurntSushi/toml v1.3.2
 	github.com/go-mysql-org/go-mysql v1.11.0
+	github.com/go-sql-driver/mysql v1.9.0
 	github.com/juju/errors v1.0.0
 	github.com/pingcap/check v0.0.0-20190102082844-67f458068fc8
 	github.com/prometheus/client_golang v0.9.3
@@ -15,6 +16,7 @@ require (
 )
 
 require (
+	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/beorn7/perks v1.0.0 // indirect
 	github.com/goccy/go-json v0.10.2 // indirect

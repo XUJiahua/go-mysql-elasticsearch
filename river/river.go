@@ -2,15 +2,17 @@ package river
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"regexp"
 	"strings"
 	"sync"
 
-	"github.com/juju/errors"
-	"github.com/siddontang/go-log/log"
 	"github.com/go-mysql-org/go-mysql-elasticsearch/elastic"
 	"github.com/go-mysql-org/go-mysql/canal"
+	_ "github.com/go-sql-driver/mysql"
+	"github.com/juju/errors"
+	"github.com/siddontang/go-log/log"
 )
 
 // ErrRuleNotExist is the error if rule is not defined.
@@ -32,6 +34,8 @@ type River struct {
 	wg sync.WaitGroup
 
 	es *elastic.Client
+
+	targetDB *sql.DB
 
 	master *masterInfo
 
@@ -69,12 +73,33 @@ func NewRiver(c *Config) (*River, error) {
 		return nil, errors.Trace(err)
 	}
 
-	cfg := new(elastic.ClientConfig)
-	cfg.Addr = r.c.ESAddr
-	cfg.User = r.c.ESUser
-	cfg.Password = r.c.ESPassword
-	cfg.HTTPS = r.c.ESHttps
-	r.es = elastic.NewClient(cfg)
+	if c.MySQL2MySQL {
+		log.Warnf("sync from mysql to mysql")
+		targetDSN := fmt.Sprintf("%s:%s@tcp(%s)/?charset=%s",
+			r.c.TargetMyUser,
+			r.c.TargetMyPassword,
+			r.c.TargetMyAddr,
+			r.c.TargetMyCharset)
+
+		var err error
+		r.targetDB, err = sql.Open("mysql", targetDSN)
+		if err != nil {
+			return nil, errors.Trace(err)
+		}
+
+		if err = r.targetDB.Ping(); err != nil {
+			r.targetDB.Close()
+			return nil, errors.Trace(err)
+		}
+
+	} else {
+		cfg := new(elastic.ClientConfig)
+		cfg.Addr = r.c.ESAddr
+		cfg.User = r.c.ESUser
+		cfg.Password = r.c.ESPassword
+		cfg.HTTPS = r.c.ESHttps
+		r.es = elastic.NewClient(cfg)
+	}
 
 	go InitStatus(r.c.StatAddr, r.c.StatPath)
 
@@ -129,6 +154,10 @@ func (r *River) prepareCanal() error {
 	}
 
 	r.canal.SetEventHandler(&eventHandler{r})
+	if r.c.MySQL2MySQL {
+		r.canal.SetEventHandler(&customEventHandler{eventHandler{r}})
+		log.Warnf("use mysql2mysql event handler")
+	}
 
 	return nil
 }

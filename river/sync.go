@@ -127,6 +127,7 @@ func (r *River) syncLoop() {
 
 	lastSavedTime := time.Now()
 	reqs := make([]*elastic.BulkRequest, 0, 1024)
+	mReqs := make([]*MySQLBulkRequest, 0, 1024)
 
 	var pos mysql.Position
 
@@ -148,6 +149,9 @@ func (r *River) syncLoop() {
 			case []*elastic.BulkRequest:
 				reqs = append(reqs, v...)
 				needFlush = len(reqs) >= bulkSize
+			case []*MySQLBulkRequest:
+				mReqs = append(mReqs, v...)
+				needFlush = len(reqs) >= bulkSize
 			}
 		case <-ticker.C:
 			needFlush = true
@@ -155,7 +159,7 @@ func (r *River) syncLoop() {
 			return
 		}
 
-		if needFlush {
+		if needFlush && len(reqs) > 0 {
 			// TODO: retry some times?
 			if err := r.doBulk(reqs); err != nil {
 				log.Errorf("do ES bulk err %v, close sync", err)
@@ -163,6 +167,16 @@ func (r *River) syncLoop() {
 				return
 			}
 			reqs = reqs[0:0]
+		}
+
+		// flush mReqs
+		if needFlush && len(mReqs) > 0 {
+			if err := r.executeBatch(mReqs); err != nil {
+				log.Errorf("do MySQL bulk err %v, close sync", err)
+				r.cancel()
+				return
+			}
+			mReqs = mReqs[0:0]
 		}
 
 		if needSavePos {

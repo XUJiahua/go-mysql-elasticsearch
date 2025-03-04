@@ -45,6 +45,12 @@ type Config struct {
 	FlushBulkTime TomlDuration `toml:"flush_bulk_time"`
 
 	SkipNoPkTable bool `toml:"skip_no_pk_table"`
+
+	MySQL2MySQL      bool   `toml:"mysql2mysql"`
+	TargetMyAddr     string `toml:"target_my_addr"`
+	TargetMyUser     string `toml:"target_my_user"`
+	TargetMyPassword string `toml:"target_my_pass"`
+	TargetMyCharset  string `toml:"target_my_charset"`
 }
 
 // NewConfigWithFile creates a Config from file.
