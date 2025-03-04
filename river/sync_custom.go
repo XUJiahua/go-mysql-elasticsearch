@@ -98,7 +98,7 @@ func (r *River) makeInsertSQL(rule *Rule, rows [][]interface{}) ([]*MySQLBulkReq
 
 func (r *River) makeUpdateSQL(rule *Rule, rows [][]interface{}) ([]*MySQLBulkRequest, error) {
 	if len(rows)%2 == 1 {
-		// TODO not expect odd rows
+		return nil, errors.Errorf("invalid update rows event, must have 2x rows, but %d", len(rows))
 	}
 	reqs := make([]*MySQLBulkRequest, 0, len(rows)/2)
 
@@ -230,7 +230,7 @@ func (r *River) executeBatch(reqs []*MySQLBulkRequest) error {
 	// 开启事务
 	tx, err := r.targetDB.Begin()
 	if err != nil {
-		return err
+		return errors.Trace(err)
 	}
 	defer func() {
 		if err != nil {
@@ -238,35 +238,40 @@ func (r *River) executeBatch(reqs []*MySQLBulkRequest) error {
 		}
 	}()
 
-	// 按表和操作类型分组处理
 	groups := groupRequests(reqs)
 
 	for _, group := range groups {
-		// TODO 要求同一组的 Query 是相同的，groupRequests 无法保证
-		stmt, err := tx.Prepare(group[0].Query)
+		err = func() error {
+			stmt, err := tx.Prepare(group[0].Query)
+			if err != nil {
+				return errors.Trace(err)
+			}
+			defer stmt.Close()
+
+			for _, req := range group {
+				_, err = stmt.Exec(req.Values...)
+				if err != nil {
+					return errors.Trace(err)
+				}
+			}
+			return nil
+		}()
+
 		if err != nil {
 			return err
-		}
-		// TODO 疑似泄露
-		defer stmt.Close()
-
-		for _, req := range group {
-			_, err = stmt.Exec(req.Values...)
-			if err != nil {
-				return err
-			}
 		}
 	}
 
 	return tx.Commit()
 }
 
-// 将请求按表和操作类型分组
+// 将请求按表、操作类型和SQL语句分组
 func groupRequests(reqs []*MySQLBulkRequest) [][]*MySQLBulkRequest {
 	groups := make(map[string][]*MySQLBulkRequest)
 
 	for _, req := range reqs {
-		key := fmt.Sprintf("%s_%s", req.Table, req.Action)
+		// 使用表名、操作类型和SQL语句作为key，确保相同SQL语句的请求分在一组
+		key := fmt.Sprintf("%s_%s_%s", req.Table, req.Action, req.Query)
 		groups[key] = append(groups[key], req)
 	}
 
